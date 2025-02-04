@@ -58,7 +58,7 @@ function [throttle, brake, terminate] = RL_attacker_controller(EngineRPM, Vehicl
         % Salva la finestra di stato e il costo chiamando la funzione esterna
         if any(saved_window) && cost < 200
             saved_data = [saved_window, cost]; % Combina la finestra con il costo
-            update_simulation_data(saved_data); % Chiama la funzione per salvare i dati
+            %update_simulation_data(saved_data); % Chiama la funzione per salvare i dati
         end
 
         % Imposta terminate a true per segnalare la fine
@@ -89,24 +89,24 @@ function [throttle, brake, terminate] = RL_attacker_controller(EngineRPM, Vehicl
     
         % Inizializza le variabili alla prima iterazione dell'attacco
         if isempty(predicted_pairs) || isempty(pair_index)
-            predicted_pairs = zeros(10, 2); % Per contenere le 10 coppie predette
+            predicted_pairs = zeros(600, 2); % Per contenere le 10 coppie predette
             pair_index = 0;  % Indice iniziale
         end
     
         % Se tutte le coppie sono state consumate, chiama la funzione Python
         if pair_index == 0 || pair_index > 10
-            % Salva la finestra di stato
-            % throttle_last_60s = sliding_window(:, 3); % Throttle degli ultimi 60 secondi
-            % brake_last_60s = sliding_window(:, 4);    % Brake degli ultimi 60 secondi
+            % Salva la finestra di stato (ultimi 20 secondi)
+            throttle_last_20s = sliding_window(end-19:end, 3); % Throttle degli ultimi 20 secondi
+            brake_last_20s = sliding_window(end-19:end, 4);    % Brake degli ultimi 20 secondi
             
-            % Combina throttle e brake in un unico array con dimensione [60 x 2]
-            % sliding_window_state = [throttle_last_60s, brake_last_60s];
-    
+            % Combina throttle e brake in un unico array con dimensione [20 x 2]
+            sliding_window_state = [throttle_last_20s, brake_last_20s];
+            
             % Converte in array NumPy
-            % py_sliding_window = py.numpy.array(sliding_window_state);
-    
+            py_sliding_window = py.numpy.array(sliding_window_state);
+            
             % Chiama la funzione Python per ottenere throttle e brake
-            results = py.Attacker.attack();
+            results = py.Attacker.attack(py_sliding_window);
     
             % Verifica i risultati della funzione Python
             if isempty(results) || any(isnan(double(results)))
@@ -134,6 +134,8 @@ function [throttle, brake, terminate] = RL_attacker_controller(EngineRPM, Vehicl
         % Incrementa il contatore per la prossima iterazione
         pair_index = pair_index + 1;
 
+        disp(throttle);
+        disp(brake);
     else
 
         % Calcola il valore di posixtime e prendi solo le ultime 4 cifre
@@ -152,7 +154,7 @@ function [throttle, brake, terminate] = RL_attacker_controller(EngineRPM, Vehicl
         brake_mean = 250;
         
         % Valore della covarianza negativa
-        covariance_matrix = [100, 0; 0, 5000];
+        covariance_matrix = [100, -500; -500, 5000];
         
         % Generazione di campioni casuali
         inputs = mvnrnd([throttle_mean, brake_mean], covariance_matrix, 1);

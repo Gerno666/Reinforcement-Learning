@@ -8,8 +8,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
 
 # Carica il modello addestrato
-model_path = 'cost_predictor_model_R.h5'
-dataset_path = 'RL_10k_simulations_data_normalized_update.csv'
+model_path = 'cost_predictor_model_test_R.h5'
+dataset_path = 'RL_10k_simulations_data_normalized_test_update.csv'
 
 # Variabile globale per mantenere il modello in memoria
 model = None
@@ -71,12 +71,12 @@ def evaluate_cost(state_vector):
 
     # Denormalizzazione del cost_to_go
     # Durante il training il costo era normalizzato dividendo per 100, quindi qui moltiplichiamo per 100
-    cost_value = cost_to_go_norm_value * 200.0
+    cost_value = cost_to_go_norm_value * 100.0
     print(cost_value)
     return cost_value
 
 
-def train_policy(state_vector, cost):
+'''def train_policy(state_vector, cost):
     """
     Riaddestramento periodico del modello utilizzando l'intero dataset aggiornato.
     """
@@ -88,7 +88,7 @@ def train_policy(state_vector, cost):
 
     # Normalizza lo stato e il costo
     state_norm = normalize_state(state_vector)
-    cost_norm = cost / 200.0
+    cost_norm = cost / 100.0
 
     # Aggiungi la nuova coppia al buffer
     training_buffer.append((state_norm, cost_norm))
@@ -100,8 +100,8 @@ def train_policy(state_vector, cost):
     df.to_csv(dataset_path, mode='a', header=False, index=False)
     print("Nuova coppia aggiunta al dataset e salvata.")
 
-    # Riaddestramento periodico ogni 500 nuove coppie
-    if len(training_buffer) >= 250:
+    # Riaddestramento periodico ogni 100 nuove coppie
+    if len(training_buffer) >= 100:
         print("Buffer pieno. Inizio del riaddestramento periodico con l'intero dataset...")
 
         # Carica il modello
@@ -130,4 +130,57 @@ def train_policy(state_vector, cost):
 
         # Svuota il buffer
         training_buffer = []
-        print("Buffer svuotato dopo il riaddestramento.")
+        print("Buffer svuotato dopo il riaddestramento.")'''
+
+
+def train_policy(state_vector, cost):
+    """
+    Aggiorna il modello esistente utilizzando solo i nuovi dati.
+    """
+    global training_buffer  # Buffer per accumulare nuove coppie
+
+    # Converte lo stato in un array NumPy se necessario
+    if not isinstance(state_vector, np.ndarray):
+        state_vector = np.array(state_vector, dtype=np.float32)
+
+    # Normalizza lo stato e il costo
+    state_norm = normalize_state(state_vector)
+    cost_norm = cost / 100.0
+
+    # Aggiungi la nuova coppia al buffer
+    training_buffer.append((state_norm, cost_norm))
+    print(f"Coppia aggiunta al buffer. Dimensione attuale del buffer: {len(training_buffer)}")
+
+    # Salva la nuova coppia nel dataset aggiornato
+    new_data = np.hstack([state_norm, cost_norm]).reshape(1, -1)
+    df = pd.DataFrame(new_data)
+    df.to_csv(dataset_path, mode='a', header=False, index=False)
+    print("Nuova coppia aggiunta al dataset e salvata.")
+
+    # Riaddestramento periodico ogni 100 nuove coppie
+    if len(training_buffer) >= 100:
+        print("Buffer pieno. Inizio dell'aggiornamento incrementale del modello...")
+
+        # Carica il modello esistente
+        model = load_or_initialize_model()
+        print("Modello caricato per aggiornamento incrementale.")
+
+        # Prepara i dati nuovi dal buffer
+        X_new, y_new = zip(*training_buffer)
+        X_new = np.array(X_new)
+        y_new = np.array(y_new)
+
+        # Riaddestramento incrementale con i nuovi dati
+        optimizer = Adam(learning_rate=0.0001)
+        model.compile(optimizer=optimizer, loss='mean_squared_error')
+
+        print("Aggiornamento incrementale del modello con i nuovi dati...")
+        model.fit(X_new, y_new, epochs=50, batch_size=32, verbose=1)
+
+        # Salva il modello aggiornato
+        model.save(model_path)
+        print("Modello aggiornato e salvato come cost_predictor_model_R.h5")
+
+        # Svuota il buffer
+        training_buffer = []
+        print("Buffer svuotato dopo l'aggiornamento.")

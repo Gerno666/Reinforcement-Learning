@@ -62,6 +62,6 @@ def cost_to_go(state_vector):
 
     # Denormalizzazione del cost_to_go
     # Durante il training il costo era normalizzato dividendo per 100, quindi qui moltiplichiamo per 100
-    cost_value = cost_to_go_norm_value * 200.0
+    cost_value = cost_to_go_norm_value * 100.0
 
     return cost_value

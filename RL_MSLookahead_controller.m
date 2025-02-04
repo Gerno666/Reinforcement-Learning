@@ -2,7 +2,7 @@ function [throttle, brake, terminate] = RL_MSLookahead_controller(EngineRPM, Veh
 
     % Persistent variables to maintain state across function calls
     persistent throttle_buffer brake_buffer speed_buffer rpm_buffer initialized
-    persistent throttle_mean brake_mean covariance_matrix
+    persistent throttle_mean brake_mean covariance_matrix simulation_id
     persistent terminate_flag
     persistent L start_time states costs steps
     persistent step_history_array
@@ -20,8 +20,22 @@ function [throttle, brake, terminate] = RL_MSLookahead_controller(EngineRPM, Veh
         rpm_buffer = zeros(60, 1);
 
         throttle_mean = 50;
-        brake_mean = 300;
-        covariance_matrix = [100, -600; -600, 8000];
+        brake_mean = 250;
+        covariance_matrix = [100, -500; -500, 5000];
+
+        % Seed casuale
+        simulation_id = randi(1e6); % Genera un numero casuale unico
+
+        % Calcola il valore di posixtime e prendi solo le ultime 4 cifre
+        timestamp = round(posixtime(datetime('now')) * 1000);
+        seed_suffix = mod(timestamp, 10000); % Prendi le ultime 4 cifre
+
+        % Combina il seed con gli altri parametri
+        random_offset = randi(1000); % Offset casuale
+        seed = simulation_id + round(time * 1000) + random_offset + seed_suffix;
+        
+        % Imposta il seed
+        rng(seed, 'twister');
 
         terminate_flag = false;
         L = 10; % Lookahead steps
@@ -47,37 +61,22 @@ function [throttle, brake, terminate] = RL_MSLookahead_controller(EngineRPM, Veh
         rpm_buffer(1) = [];
     end
 
+    % Calcola il valore di posixtime e prendi solo le ultime 4 cifre
+    timestamp = round(posixtime(datetime('now')) * 1000);
+    seed_suffix = mod(timestamp, 10000); % Prendi le ultime 4 cifre
+
+    % Combina il seed con gli altri parametri
+    random_offset = randi(1000); % Offset casuale
+    seed = simulation_id + round(time * 1000) + random_offset + seed_suffix;
+    
+    % Imposta il seed
+    rng(seed, 'twister');
+
     % **Generazione di Throttle e Brake casuali**
     inputs = mvnrnd([throttle_mean, brake_mean], covariance_matrix, 1);
 
-    % Normalizzazione dei valori rispetto ai range massimi
-    normalized_throttle = inputs(1) / 100; % throttle normalizzato su [0, 1]
-    normalized_brake = inputs(2) / 1000;   % brake normalizzato su [0, 1]
-    
-    % Introduzione di un fattore casuale
-    random_factor = rand; % Numero casuale tra 0 e 1
-    
-    % Logica per decidere chi impostare a zero
-    if random_factor < 0.4
-        % 40% delle volte imposta sempre il throttle
-        throttle = max(0, min(100, round(normalized_throttle * 100))); % throttle limitato tra 0 e 100
-        brake = 0;
-    elseif random_factor > 0.6
-        % 40% delle volte imposta sempre il brake
-        throttle = 0;
-        brake = max(0, min(1000, round(normalized_brake * 1000))); % brake limitato tra 0 e 1000
-    else
-        % 20% delle volte usa i valori normalizzati per decidere
-        if normalized_throttle > normalized_brake
-            % Usa throttle se maggiore
-            throttle = max(0, min(100, round(normalized_throttle * 100)));
-            brake = 0;
-        else
-            % Usa brake se maggiore
-            throttle = 0;
-            brake = max(0, min(1000, round(normalized_brake * 1000)));
-        end
-    end
+    throttle = max(0, inputs(1));
+    brake = max(0, inputs(2));
 
     % Update throttle and brake buffers
     throttle_buffer = [throttle_buffer; throttle];
